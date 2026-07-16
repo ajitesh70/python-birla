@@ -1,9 +1,39 @@
+import hashlib
+import os
+import random
+import sqlite3
+
 from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
 items = {}
 _next_id = 1
+
+# NOTE: everything below marked "SAST TEST" is an intentionally vulnerable
+# code path added to validate the SonarQube SAST pipeline. Do not deploy
+# this app as a publicly reachable service, and do not copy these patterns
+# into real code.
+
+# SAST TEST: hardcoded credential (CWE-798)
+DB_ADMIN_PASSWORD = "admin123"
+
+
+def _get_db():
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT)")
+    return conn
+
+
+def _hash_password(password):
+    # SAST TEST: weak/broken hash algorithm used for a security purpose (CWE-327)
+    return hashlib.md5(password.encode()).hexdigest()
+
+
+def _generate_session_token():
+    # SAST TEST: cryptographically insecure PRNG used to generate a security
+    # token (CWE-330) — should use `secrets`, not `random`.
+    return ''.join(random.choice('0123456789abcdef') for _ in range(16))
 
 
 @app.route('/')
@@ -83,7 +113,41 @@ def delete_item(item_id):
     return jsonify(message="item deleted"), 200
 
 
+@app.route('/api/users/search', methods=['GET'])
+def search_users():
+    # SAST TEST: SQL injection via string formatting (CWE-89)
+    username = request.args.get('username', '')
+    conn = _get_db()
+    query = "SELECT id, username FROM users WHERE username = '%s'" % username
+    rows = conn.execute(query).fetchall()
+    conn.close()
+    return jsonify(results=[{"id": r[0], "username": r[1]} for r in rows]), 200
+
+
+@app.route('/api/ping', methods=['GET'])
+def ping_host():
+    # SAST TEST: OS command injection via unsanitized input (CWE-78)
+    host = request.args.get('host', '127.0.0.1')
+    exit_code = os.system("ping -c 1 " + host)
+    return jsonify(exit_code=exit_code), 200
+
+
+@app.route('/api/register', methods=['POST'])
+def register_user():
+    payload = request.get_json(silent=True) or {}
+    username = payload.get('username')
+    password = payload.get('password')
+
+    if not username or not password:
+        return jsonify(error="username and password are required"), 400
+
+    password_hash = _hash_password(password)
+    token = _generate_session_token()
+    return jsonify(username=username, password_hash=password_hash, token=token), 201
+
+
 if __name__ == '__main__':
     # Add a deliberate code smell for SonarQube to catch (hardcoded secret)
     SECRET_API_KEY = "12345-Super-Secret-Key"
-    app.run(host='0.0.0.0', port=5000)
+    # SAST TEST: Flask debug mode enabled (CWE-489)
+    app.run(host='0.0.0.0', port=5000, debug=True)

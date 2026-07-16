@@ -102,3 +102,14 @@ def test_delete_item(client):
 def test_delete_item_not_found(client):
     resp = client.delete('/api/items/999')
     assert resp.status_code == 404
+
+
+def test_search_users_empty(client):
+    resp = client.get('/api/users/search?username=alice')
+    assert resp.status_code == 200
+    assert resp.get_json()['results'] == []
+
+
+# NOTE: /api/ping, /api/register, and the password/token helpers are
+# intentionally left untested here (see app.py "SAST TEST" comments) to
+# validate SonarQube's new-code coverage gate.
