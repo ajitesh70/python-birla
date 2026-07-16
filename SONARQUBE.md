@@ -32,8 +32,9 @@ SonarQube dashboard rather than being auto-resolved by code changes alone.
 
 ## Metrics we've implemented
 
-The quality gate evaluates only **new code** (changes since the last
-analysis), not the whole legacy codebase, against four conditions:
+The quality gate evaluates only **new code** — changes since a fixed
+baseline point, not necessarily just the latest push — rather than the
+whole legacy codebase, against four conditions:
 
 | Condition | Threshold |
 |---|---|
